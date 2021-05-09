@@ -27,17 +27,17 @@ This exporter is using the [Notion.so API](https://github.com/jamalex/notion-py)
 
 ### Inline 
 
-- [x] **加粗**，*斜体*，~~删除线~~，``单行代码``, 行内公式(例如$e^{i\pi}+1=0$)，含[链接的文本](https://github.com/tanyingkongxin/notion2md) （注：下划线不处理，因为Markdown无下划线的原生语法）
+- [x] **加粗**，*斜体*，~~删除线~~，``单行代码``, 行内公式(例如 $e^{i\pi}+1=0$ )，含[链接的文本](https://github.com/tanyingkongxin/notion2md) （注：下划线不处理，因为Markdown无下划线的原生语法）
 
 - [ ] emoji 可以正常显示，例如​ :happy:
 
-- [ ] 人名引用（Mention a person），日期（Date of reminder）（重要性不高，延后考虑）
+- [ ] 人名引用（Mention a person），日期或提醒（Date or reminder）（重要性不高，延后考虑）
 
-  ![image-20210509170454606](README.assets/image-20210509170454606.png)
+  ![Mention_a_person](assets/image-01.png)
 
-  ![image-20210509170527447](README.assets/image-20210509170527447.png)
+  ![Date_or_reminder](assets/image-01.png)
 
-- [x] 行内页面引用（Mention a page）：转换为`[[引用的页面]]`表示，该形式可以在Obsidian，Roam Research等软件链接到页面。
+- [x] 行内页面引用（Mention a page）：转换为`[[引用的页面]]`表示，该形式可以在 Obsidian，Roam Research 等软件直接链接到对应页面。
 
   - [ ] 不足之处：行内引用的页面未下载
 
@@ -48,7 +48,7 @@ Database 是 Notion 自身的特性，输出到 Markdown 文档中自然会有�
 已实现的功能：
 
 - 将不带有子页面的`Table`输出为 Markdown 格式的表格。
-- 表格中大部分的`Basic`属性都能正常导出，包含：Text, Number, Select, Multi-select, Date, Person, Checkbox, URL, Email, Phone；`Advanced`属性的Create time, Create by, Last edited time, Last edited by。
+- 表格中大部分的`Basic`属性都能正常导出，包含：Text, Number, Select, Multi-select, Date, Person, Checkbox, URL, Email, Phone；`Advanced`属性能导出的包含 Create time, Create by, Last edited time, Last edited by。
 
 考虑实现的功能：
 
@@ -57,11 +57,11 @@ Database 是 Notion 自身的特性，输出到 Markdown 文档中自然会有�
 
 剩余的属性：Formula, Relation, Rollup 就不考虑实现导出了（没必要也不会: )
 
-不足之处：目前导出的表格的列的顺序，只能保证 `Name`在第一列，其余列的顺序可能会被打乱。即你的 Notion 表格列的顺序为“Name, Text, Number, Select”，导出为 Markdown 的表格列的顺序可能会变成“Name, Select, Text, Number”。该原因在于 Notion.so API 的逻辑，暂时无法解决。
+不足之处：目前导出的表格的列的顺序，只能保证 `Name`在第一列，其余列的顺序可能会被打乱。即你的 Notion 表格列的顺序为“Name, Text, Number, Select”，导出为 Markdown 的表格列的顺序可能会变成“Name, Select, Text, Number”。该原因在于 `Notion.so API` 的逻辑，暂时无法解决。
 
  ### Media
 - [x] 图像（Image）
-- [x] 书签（Web bookmark）
+- [x] 网页书签（Web bookmark）
 - [x] 代码块（Code）
 - [ ] 视频（Video），音频（Audio）
 - [ ] 文档（File）
