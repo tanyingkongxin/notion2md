@@ -1,8 +1,8 @@
 import os
 import requests
-
-
-# from datetime import datetime
+from notion.collection import NotionDate
+from notion.user import User
+import datetime
 
 
 class PageBlockExporter:
@@ -13,7 +13,7 @@ class PageBlockExporter:
 
         self.md = ""
         self.dir = directory + self.file_name + '/'
-        # self.image_dir = ""
+        self.image_dir = ""
         # self.download_dir = ""
         self.sub_exporters = []
 
@@ -25,7 +25,7 @@ class PageBlockExporter:
         # write to markdown file
         file_path = os.path.join(self.dir, self.file_name + '.md')
         with open(file_path, 'w', encoding='utf-8') as f:
-            self.page2md()
+            self.md = self.page2md()
             f.write(self.md)
             f.close()
 
@@ -33,30 +33,16 @@ class PageBlockExporter:
         for sub_exporter in self.sub_exporters:
             sub_exporter.export()
 
-    # def create_image_foler(self):
-    #     """create image output directory
-    #     """
-    #     self.image_dir = os.path.join(self.dir, 'image/')
-    #     if not (os.path.isdir(self.image_dir)):
-    #         os.makedirs(os.path.join(self.image_dir))
+    def image_export(self, url, count):
+        if self.image_dir is "":
+            self.image_dir = os.path.join(self.dir, 'image/')
+            if not (os.path.isdir(self.image_dir)):
+                os.makedirs(os.path.join(self.image_dir))
 
-    #
-    # def image_export(self, url, count):
-    #     """make image file based on url and count.
-    #
-    #       Args:
-    #         url(Stirng): url of image
-    #         count(int): the number of image in the page
-    #
-    #       Returns:
-    #         image_path(String): image_path for the link in markdown
-    #     """
-    #     if self.image_dir is "":
-    #         self.create_image_foler()
-    #     image_path = self.image_dir + 'img_{0}.png'.format(count)
-    #     r = requests.get(url, allow_redirects=True)
-    #     open(image_path, 'wb').write(r.content)
-    #     return image_path
+        image_name = 'img_{0}.png'.format(count)
+        r = requests.get(url, allow_redirects=True)
+        open(self.image_dir + image_name, 'wb').write(r.content)
+        return image_name
 
     # def create_download_foler(self):
     #     """create download output directory
@@ -89,47 +75,42 @@ class PageBlockExporter:
     def page2md(self, page=None):
         """change notion's block to markdown string
         """
+        result = ""
         params = {'tap_count': 0, 'img_count': 0, 'num_index': 0}
         if page is None:
             page = self.page
         for i, block in enumerate(page.children):
             try:
-                self.block2md(block, params)
+                result += self.block2md(block, params)
             except Exception as e:
                 print("[Block exception]: ", e)
-                self.md += ""
-        # self.md = self.md[:-1]  # why do this ?
+        # self.md = self.md[:-1]
+        return result
 
     def block2md(self, block, params):
+        result = ""
         if params['tap_count'] != 0:
-            self.md += '\n'
+            result += '\n'
             for i in range(params['tap_count']):
-                self.md += '\t'
-        try:
-            btype = block.type
-        except Exception as e:
-            print('[block type error] ', e)
+                result += '\t'
 
+        btype = block.type
         if btype != "numbered_list":
             params['num_index'] = 0
-        try:
-            bt = block.title
-        except:
-            pass
 
         if btype == 'header':
-            self.md += "# " + block.title
+            result += "# " + block.title
         elif btype == "sub_header":
-            self.md += "## " + block.title
+            result += "## " + block.title
         elif btype == "sub_sub_header":
-            self.md += "### " + block.title
+            result += "### " + block.title
         elif btype == 'page':
-            # self.create_sub_folder()
             sub_url = block.get_browseable_url()
             exporter = PageBlockExporter(sub_url, self.client, self.dir)
-            # print("[Log]: test for title of subpage, {}".format(block.title))
             try:
-                if "https:" in block.icon:
+                if block.icon is None:
+                    icon = ""
+                elif "https:" in block.icon:
                     icon = "!" + link_format("", block.icon)
                 else:
                     icon = block.icon
@@ -137,43 +118,51 @@ class PageBlockExporter:
                 print('[icon]', e)
                 icon = ""
             self.sub_exporters.append(exporter)
-            self.md += icon + link_format(exporter.file_name, './{0}/{0}.md'.format(block.title))
+            result += icon + link_format(exporter.file_name, './{0}/{0}.md'.format(block.title))
         elif btype == 'text':
             try:
-                self.md += block.title
+                result += self._filter_mentioned_page(block)
             except:
-                self.md += ""
+                pass
         elif btype == 'bookmark':
-            self.md += link_format(bt, block.link)
+            result += link_format(block.title, block.link)
+        elif btype == 'image':
+            params['img_count'] += 1
+            try:
+                img_name = self.image_export(block.source, params['img_count'])
+                result += "!" + link_format(img_name, './image/' + img_name)
+            except Exception as e:
+                print('[Image]', e)
         elif btype == "video" or btype == "file" or btype == "audio" or btype == "pdf" or btype == "gist":
-            self.md += link_format(block.source, block.source)
+            result += link_format(block.source, block.source)
         elif btype == "bulleted_list" or btype == "toggle":
-            self.md += '- ' + block.title
+            result += '- ' + self._filter_mentioned_page(block)
         elif btype == "numbered_list":
             params['num_index'] += 1
-            self.md += str(params['num_index']) + '. ' + block.title
+            result += str(params['num_index']) + '. ' + self._filter_mentioned_page(block)
         elif btype == "code":
-            self.md += "``` " + block.language.lower() + "\n" + block.title + "\n```"
+            result += "``` " + block.language.lower() + "\n" + self._filter_mentioned_page(block) + "\n```"
         elif btype == "equation":
-            self.md += "$$" + block.latex + "$$"
+            result += "$$" + block.latex + "$$"
         elif btype == "divider":
-            self.md += "---"
+            result += "---"
         elif btype == "to_do":
             if block.checked:
-                self.md += "- [x] " + bt
+                result += "- [x] " + self._filter_mentioned_page(block)
             else:
-                self.md += "- [ ] " + bt
+                result += "- [ ] " + self._filter_mentioned_page(block)
         elif btype == "quote":
-            self.md += "> " + bt
+            result += "> " + self._filter_mentioned_page(block)
         elif btype == "column" or btype == "column_list":
-            self.md += ""
+            result += ""
         elif btype == "collection_view":
             collection = block.collection
-            self.md += self.make_table(collection)
+            result += self._make_table(collection)
         elif btype == "callout":
-            self.md += "``` " + "\n" + block.title + "\n```"
+            result += "> 💡 " + self._filter_mentioned_page(block)
+            # result += "``` " + "\n" + self._filter_mentioned_page(block) + "\n```"
         elif btype == "table_of_contents":
-            self.md += "[TOC]"
+            result += "[TOC]"
         else:
             print('Unhandled block type: ', btype)
 
@@ -182,13 +171,29 @@ class PageBlockExporter:
             num_index = params['num_index']
             params['num_index'] = 0
             for child in block.children:
-                self.block2md(child, params)
+                result += self.block2md(child, params)
             params['tap_count'] -= 1
             params['num_index'] = num_index
         if params['tap_count'] == 0:
-            self.md += "\n\n"
+            result += "\n\n"
+        return result
 
-    def make_table(self, collection):
+    def _filter_mentioned_page(self, block):
+        mentioned_page_list = []
+        title = block.title
+        if title is "":
+            return ""
+        try:
+            for content in block.get('properties')['title']:
+                if content[0] == '‣':
+                    mentioned_page_list.append("[[{0}]]".format(self.client.get_block(content[1][0][1]).title))
+        except Exception as e:
+            print(block.title, '[_filter_mentioned_page]', e)
+        for i in range(len(mentioned_page_list)):
+            title = title.replace('‣', mentioned_page_list[i])
+        return title
+
+    def _make_table(self, collection):
         columns = []
         row_blocks = collection.get_rows()
         for proptitle in row_blocks[0].schema:
@@ -205,10 +210,24 @@ class PageBlockExporter:
                     content = self.page2md(row)
                 else:
                     content = row.get_property(column)
-                if str(type(content)) == "<class 'list'>":
-                    content = ', '.join(content)
-                if str(type(content)) == "<class 'datetime.datetime'>":
-                    content = content.strftime('%b %d, %Y')
+                if isinstance(content, list):
+                    # when the property type of column is Person
+                    if len(content) > 0 and isinstance(content[0], User):
+                        content = [user.full_name for user in content]
+                    else:
+                        content = ', '.join(content)
+                elif isinstance(content, int):
+                    content = str(content)
+                elif isinstance(content, NotionDate):
+                    if content.end is None:
+                        content = str(content.start)
+                    else:
+                        content = str(content.start) + " -> " + str(content.end)
+                elif isinstance(content, User):
+                    content = content.full_name
+                elif isinstance(content, datetime.datetime):
+                    content = content.strftime("%Y-%m-%d %H:%M:%S")
+
                 if column == "Name":
                     row_content.insert(0, content)
                 else:
@@ -218,30 +237,14 @@ class PageBlockExporter:
 
 
 def link_format(name, url):
-    """make markdown link format string
-    """
+    """ make markdown link format string """
     return "[" + name + "]" + "(" + url + ")"
 
 
 def table_to_markdown(table):
-    md = ""
-    md += join_with_vertical(table[0])
-    md += "\n---|---|---\n"
+    """ change `table` to markdown table format string """
+    md = "| " + " | ".join(table[0]) + " |\n"
+    md += "| ---- " * len(table[0]) + "|\n"
     for row in table[1:]:
-        if row != table[1]:
-            md += '\n'
-        md += join_with_vertical(row)
+        md += "| " + " | ".join(row) + " |\n"
     return md
-
-
-def join_with_vertical(list):
-    return " | ".join(list)
-
-
-
-
-# def filter_source_url(block):
-#     try:
-#         return block.get('properties')['source'][0][0]
-#     except:
-#         return block.title
