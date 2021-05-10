@@ -129,3 +129,5 @@ dmypy.json
 .pyre/
 
 notion2md_output/
+
+.idea/

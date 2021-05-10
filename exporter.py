@@ -5,8 +5,8 @@ from notion.user import User
 import datetime
 
 
-class PageBlockExporter:
-    def __init__(self, url, client, directory):
+class PageBlockExporter(object):
+    def __init__(self, url, client, directory, isCollection=False):
         self.client = client
         self.page = self.client.get_block(url)
         self.file_name = self.page.title
@@ -16,6 +16,7 @@ class PageBlockExporter:
         self.image_dir = ""
         # self.download_dir = ""
         self.sub_exporters = []
+        self.isCollection = isCollection
 
     def export(self):
         # create folder with file name
@@ -32,17 +33,6 @@ class PageBlockExporter:
         # export all sub-page recursively
         for sub_exporter in self.sub_exporters:
             sub_exporter.export()
-
-    def image_export(self, url, count):
-        if self.image_dir is "":
-            self.image_dir = os.path.join(self.dir, 'image/')
-            if not (os.path.isdir(self.image_dir)):
-                os.makedirs(os.path.join(self.image_dir))
-
-        image_name = 'img_{0}.png'.format(count)
-        r = requests.get(url, allow_redirects=True)
-        open(self.image_dir + image_name, 'wb').write(r.content)
-        return image_name
 
     # def create_download_foler(self):
     #     """create download output directory
@@ -79,11 +69,15 @@ class PageBlockExporter:
         params = {'tap_count': 0, 'img_count': 0, 'num_index': 0}
         if page is None:
             page = self.page
-        for i, block in enumerate(page.children):
-            try:
-                result += self.block2md(block, params)
-            except Exception as e:
-                print("[Block exception]: ", e)
+
+        if self.isCollection:
+            result += self._make_table(page.collection)
+        else:
+            for i, block in enumerate(page.children):
+                try:
+                    result += self.block2md(block, params)
+                except Exception as e:
+                    print("[Block exception]: ", e)
         # self.md = self.md[:-1]
         return result
 
@@ -129,7 +123,7 @@ class PageBlockExporter:
         elif btype == 'image':
             params['img_count'] += 1
             try:
-                img_name = self.image_export(block.source, params['img_count'])
+                img_name = self._image_export(block.source, params['img_count'])
                 result += "!" + link_format(img_name, './image/' + img_name)
             except Exception as e:
                 print('[Image]', e)
@@ -158,6 +152,11 @@ class PageBlockExporter:
         elif btype == "collection_view":
             collection = block.collection
             result += self._make_table(collection)
+        elif btype == 'collection_view_page':
+            sub_url = block.get_browseable_url()
+            exporter = PageBlockExporter(sub_url, self.client, self.dir, True)
+            self.sub_exporters.append(exporter)
+            result += link_format(exporter.file_name, './{0}/{0}.md'.format(block.title))
         elif btype == "callout":
             result += "> 💡 " + self._filter_mentioned_page(block)
             # result += "``` " + "\n" + self._filter_mentioned_page(block) + "\n```"
@@ -207,7 +206,10 @@ class PageBlockExporter:
             row_content = []
             for column in columns:
                 if column == "Name" and row.get("content") is not None:
-                    content = self.page2md(row)
+                    sub_url = row.get_browseable_url()
+                    exporter = PageBlockExporter(sub_url, self.client, self.dir)
+                    self.sub_exporters.append(exporter)
+                    content = "[[{0}]]".format(row.get_property(column))
                 else:
                     content = row.get_property(column)
                 if isinstance(content, list):
@@ -234,6 +236,17 @@ class PageBlockExporter:
                     row_content.append(content)
             table.append(row_content)
         return table_to_markdown(table)
+
+    def _image_export(self, url, count):
+        if self.image_dir is "":
+            self.image_dir = os.path.join(self.dir, 'image/')
+            if not (os.path.isdir(self.image_dir)):
+                os.makedirs(os.path.join(self.image_dir))
+
+        image_name = 'img_{0}.png'.format(count)
+        r = requests.get(url, allow_redirects=True)
+        open(self.image_dir + image_name, 'wb').write(r.content)
+        return image_name
 
 
 def link_format(name, url):
