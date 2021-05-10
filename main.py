@@ -52,4 +52,4 @@ def notion_to_markdown(token_v2="", url="", output_folder='./notion2md_output/')
 
 
 if __name__ == "__main__":
-    notion_to_markdown(url="https://www.notion.so/tanying/8e21f0239e6649ecb5c69fc4b79e3b95")
+    notion_to_markdown()
